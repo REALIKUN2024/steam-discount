@@ -1,0 +1,43 @@
+name: 数据同步
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-build
+  cancel-in-progress: false
+
+jobs:
+  build-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 构建免费游戏数据
+        run: node scripts/build-data.mjs
+        env:
+          CURATED: ""
+
+      - name: 提交数据变更
+        run: |
+          git config user.name "data-bot"
+          git config user.email "data-bot@users.noreply.github.com"
+          git add public/data/ data/cache/
+          if git diff --cached --quiet; then
+            echo "无数据变更"
+          else
+            git commit -m "chore(data): 同步 Steam 免费内容 $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
